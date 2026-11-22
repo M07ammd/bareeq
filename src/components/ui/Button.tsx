@@ -6,6 +6,7 @@ type CommonProps = {
   variant?: Variant;
   size?: "md" | "lg";
   className?: string;
+  onClick?: () => void;
   children: React.ReactNode;
 };
 
@@ -27,18 +28,19 @@ export function Button(props: LinkProps | ButtonProps) {
   const { variant = "chrome", size = "md", className, children } = props;
 
   if ("href" in props && props.href !== undefined) {
-    const { href, external } = props;
+    const { href, external, onClick } = props;
     return external ? (
       <Link
         href={href}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={onClick}
         className={cls(variant, size, className)}
       >
         {children}
       </Link>
     ) : (
-      <Link href={href} className={cls(variant, size, className)}>
+      <Link href={href} onClick={onClick} className={cls(variant, size, className)}>
         {children}
       </Link>
     );
