@@ -213,14 +213,25 @@ function ServiceBookMesh({
   still: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const [hovered, setHovered] = useState(false);
   const config = BOOK_COVERS[slug] ?? BOOK_COVERS["ai-automation"];
   const coverTexture = useBookCoverTexture(config);
 
   const targetX = (index - (total - 1) / 2) * 1.58;
 
+  // Restore cursor on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof document !== "undefined") {
+        document.body.style.cursor = "auto";
+      }
+    };
+  }, []);
+
   useFrame((state, delta) => {
     if (!groupRef.current || still) return;
     const t = state.clock.elapsedTime;
+    const { pointer } = state;
 
     // Position damping
     groupRef.current.position.x = THREE.MathUtils.damp(
@@ -230,45 +241,81 @@ function ServiceBookMesh({
       delta
     );
 
-    // When active: lifts up, floats gently, steps forward, and faces viewer
-    const targetY = isActive ? 0.28 + Math.sin(t * 1.5) * 0.04 : 0;
-    const targetZ = isActive ? 0.75 : 0;
+    // Interactive mouse pointer tilt
+    // When active: tilts dynamically towards mouse pointer (yaw & pitch)
+    const pointerTiltY = isActive
+      ? pointer.x * 0.28
+      : hovered
+      ? pointer.x * 0.12
+      : 0;
+    const pointerTiltX = isActive
+      ? -pointer.y * 0.18
+      : hovered
+      ? -pointer.y * 0.08
+      : 0;
+
+    // When active: lifts up, floats gently, steps forward, and tilts with mouse
+    const targetY = isActive
+      ? 0.28 + Math.sin(t * 1.5) * 0.035 + pointer.y * 0.05
+      : hovered
+      ? 0.08
+      : 0;
+    const targetZ = isActive ? 0.75 : hovered ? 0.18 : 0;
     const targetRotY = isActive
-      ? Math.sin(t * 0.6) * 0.03
-      : 0.22 + (index - (total - 1) / 2) * -0.05; // 3/4 display angle showing spine & cover
+      ? pointerTiltY + Math.sin(t * 0.6) * 0.02
+      : 0.22 + (index - (total - 1) / 2) * -0.05 + (hovered ? 0.06 : 0);
 
     groupRef.current.position.y = THREE.MathUtils.damp(
       groupRef.current.position.y,
       targetY,
-      4,
+      4.5,
       delta
     );
     groupRef.current.position.z = THREE.MathUtils.damp(
       groupRef.current.position.z,
       targetZ,
-      4,
+      4.5,
       delta
     );
     groupRef.current.rotation.y = THREE.MathUtils.damp(
       groupRef.current.rotation.y,
       targetRotY,
-      4,
+      4.5,
       delta
     );
 
-    // Subtle idle breathing tilt
-    if (!isActive) {
-      groupRef.current.rotation.x = THREE.MathUtils.damp(
-        groupRef.current.rotation.x,
-        Math.sin(t * 0.5 + index) * 0.02,
-        3,
-        delta
-      );
-    }
+    // Subtle pitch tilt from mouse pointer & breathing
+    const baseRotX = isActive ? pointerTiltX : Math.sin(t * 0.5 + index) * 0.02;
+    groupRef.current.rotation.x = THREE.MathUtils.damp(
+      groupRef.current.rotation.x,
+      baseRotX + pointerTiltX,
+      4,
+      delta
+    );
   });
 
   return (
-    <group ref={groupRef} position={[targetX, 0, 0]} onClick={onClick}>
+    <group
+      ref={groupRef}
+      position={[targetX, 0, 0]}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setHovered(true);
+        if (typeof document !== "undefined") {
+          document.body.style.cursor = "pointer";
+        }
+      }}
+      onPointerOut={() => {
+        setHovered(false);
+        if (typeof document !== "undefined") {
+          document.body.style.cursor = "auto";
+        }
+      }}
+    >
       {/* ── 1. Front Hardcover Board with Foil Title Texture ── */}
       <group position={[0, 0, 0.07]}>
         <RoundedBox args={[1.15, 1.68, 0.024]} radius={0.035} smoothness={4}>
@@ -384,6 +431,26 @@ function Shelf({ count }: { count: number }) {
 // ── Ambient Environment Lights ───────────────────────────────────────────────
 function SceneLights({ activeSlug }: { activeSlug: string }) {
   const config = BOOK_COVERS[activeSlug] ?? BOOK_COVERS["ai-automation"];
+  const pointLightRef = useRef<THREE.PointLight>(null);
+
+  useFrame((state) => {
+    if (pointLightRef.current) {
+      // Dynamic pointer-following light for realistic specular shine across foil and cloth
+      pointLightRef.current.position.x = THREE.MathUtils.damp(
+        pointLightRef.current.position.x,
+        state.pointer.x * 2.8,
+        4,
+        0.016
+      );
+      pointLightRef.current.position.y = THREE.MathUtils.damp(
+        pointLightRef.current.position.y,
+        1.8 + state.pointer.y * 1.2,
+        4,
+        0.016
+      );
+    }
+  });
+
   return (
     <>
       <ambientLight intensity={0.8} />
@@ -391,6 +458,7 @@ function SceneLights({ activeSlug }: { activeSlug: string }) {
       <directionalLight position={[-5, 3, 4]} intensity={2.0} color={config.accent} />
       <directionalLight position={[0, -3, 3]} intensity={0.8} color="#ffffff" />
       <pointLight
+        ref={pointLightRef}
         position={[0, 2, 3]}
         intensity={2.2}
         color={config.accent}
@@ -411,14 +479,13 @@ function ShelfScene({
   onSelect: (i: number) => void;
   still: boolean;
 }) {
-  const { camera } = useThree();
-
   useFrame((state, delta) => {
     if (still) return;
-    // Camera gently centers slightly on the active book
-    const targetX = (activeIndex - (services.length - 1) / 2) * -0.32;
+    // Camera centers on active book while adding smooth mouse parallax
+    const targetX = (activeIndex - (services.length - 1) / 2) * -0.32 + state.pointer.x * 0.25;
+    const targetY = 0.45 + state.pointer.y * 0.15;
     state.camera.position.x = THREE.MathUtils.damp(state.camera.position.x, targetX, 2.5, delta);
-    state.camera.position.y = THREE.MathUtils.damp(state.camera.position.y, 0.16, 2, delta);
+    state.camera.position.y = THREE.MathUtils.damp(state.camera.position.y, targetY, 2, delta);
   });
 
   return (
@@ -556,6 +623,13 @@ export function ServicesShelf() {
   const category = categories.find((c) => c.id === service.category);
   const config = BOOK_COVERS[service.slug] ?? BOOK_COVERS["ai-automation"];
 
+  // Pointer drag tracking: enables smooth horizontal swipe without breaking clicks
+  const dragRef = useRef<{ startX: number; startY: number; moved: boolean }>({
+    startX: 0,
+    startY: 0,
+    moved: false,
+  });
+
   // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -621,8 +695,45 @@ export function ServicesShelf() {
           {/* ── LEFT: 3D Bookshelf Canvas ── */}
           <div>
             <div
-              className="relative w-full overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]"
+              className="relative w-full overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)] cursor-grab active:cursor-grabbing select-none"
               style={{ height: "clamp(300px, 52vw, 470px)" }}
+              onPointerDown={(e) => {
+                dragRef.current = {
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  moved: false,
+                };
+              }}
+              onPointerMove={(e) => {
+                if (e.buttons === 1) {
+                  const dx = e.clientX - dragRef.current.startX;
+                  if (Math.abs(dx) > 12) {
+                    dragRef.current.moved = true;
+                  }
+                }
+              }}
+              onPointerUp={(e) => {
+                if (dragRef.current.moved) {
+                  const dx = e.clientX - dragRef.current.startX;
+                  if (dx < -35) {
+                    // Dragged left -> next book
+                    setActive((p) => Math.min(p + 1, services.length - 1));
+                  } else if (dx > 35) {
+                    // Dragged right -> previous book
+                    setActive((p) => Math.max(p - 1, 0));
+                  }
+                }
+                dragRef.current.moved = false;
+              }}
+              onWheel={(e) => {
+                if (Math.abs(e.deltaX) > 25) {
+                  if (e.deltaX > 25) {
+                    setActive((p) => Math.min(p + 1, services.length - 1));
+                  } else if (e.deltaX < -25) {
+                    setActive((p) => Math.max(p - 1, 0));
+                  }
+                }
+              }}
             >
               {/* Canvas */}
               <Canvas
@@ -638,10 +749,10 @@ export function ServicesShelf() {
                 />
               </Canvas>
 
-              {/* Touch hint for mobile */}
-              <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 lg:hidden">
+              {/* Interaction hints */}
+              <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2">
                 <span className="glass-dark rounded-full px-4 py-1.5 text-xs text-white/55">
-                  انقر على الكتاب لفتحه
+                  حرك الماوس أو اسحب أو انقر على أي كتاب
                 </span>
               </div>
             </div>
