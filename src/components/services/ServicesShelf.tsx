@@ -230,15 +230,11 @@ function ServiceBookMesh({
       delta
     );
 
-    // Interactive mouse / touch tilt for active book
-    const pointerTiltY = isActive ? state.pointer.x * 0.22 : 0;
-    const pointerTiltX = isActive ? -state.pointer.y * 0.14 : 0;
-
     // When active: lifts up, floats gently, steps forward, and faces viewer
     const targetY = isActive ? 0.28 + Math.sin(t * 1.5) * 0.04 : 0;
     const targetZ = isActive ? 0.75 : 0;
     const targetRotY = isActive
-      ? Math.sin(t * 0.6) * 0.03 + pointerTiltY
+      ? Math.sin(t * 0.6) * 0.03
       : 0.22 + (index - (total - 1) / 2) * -0.05; // 3/4 display angle showing spine & cover
 
     groupRef.current.position.y = THREE.MathUtils.damp(
@@ -260,18 +256,11 @@ function ServiceBookMesh({
       delta
     );
 
-    // Subtle idle breathing tilt or active pointer tilt
+    // Subtle idle breathing tilt
     if (!isActive) {
       groupRef.current.rotation.x = THREE.MathUtils.damp(
         groupRef.current.rotation.x,
         Math.sin(t * 0.5 + index) * 0.02,
-        3,
-        delta
-      );
-    } else {
-      groupRef.current.rotation.x = THREE.MathUtils.damp(
-        groupRef.current.rotation.x,
-        pointerTiltX,
         3,
         delta
       );
@@ -422,31 +411,14 @@ function ShelfScene({
   onSelect: (i: number) => void;
   still: boolean;
 }) {
-  const { size } = useThree();
-  const isMobile = size.width < 768;
+  const { camera } = useThree();
 
   useFrame((state, delta) => {
     if (still) return;
-    // Camera gently centers slightly on the active book (more centered on mobile)
-    const trackFactor = isMobile ? -1.18 : -0.32;
-    const targetX = (activeIndex - (services.length - 1) / 2) * trackFactor;
-    
-    // Smooth pointer parallax for mouse & touch
-    const parallaxX = state.pointer.x * 0.25;
-    const parallaxY = state.pointer.y * 0.15;
-
-    state.camera.position.x = THREE.MathUtils.damp(
-      state.camera.position.x,
-      targetX + parallaxX,
-      2.5,
-      delta
-    );
-    state.camera.position.y = THREE.MathUtils.damp(
-      state.camera.position.y,
-      0.16 + parallaxY,
-      2,
-      delta
-    );
+    // Camera gently centers slightly on the active book
+    const targetX = (activeIndex - (services.length - 1) / 2) * -0.32;
+    state.camera.position.x = THREE.MathUtils.damp(state.camera.position.x, targetX, 2.5, delta);
+    state.camera.position.y = THREE.MathUtils.damp(state.camera.position.y, 0.16, 2, delta);
   });
 
   return (
@@ -584,53 +556,6 @@ export function ServicesShelf() {
   const category = categories.find((c) => c.id === service.category);
   const config = BOOK_COVERS[service.slug] ?? BOOK_COVERS["ai-automation"];
 
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const mouseStartX = useRef<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 35) {
-      if (deltaX < 0) {
-        // Swiped left
-        setActive((p) => Math.min(p + 1, services.length - 1));
-      } else {
-        // Swiped right
-        setActive((p) => Math.max(p - 1, 0));
-      }
-    }
-    touchStartX.current = null;
-    touchStartY.current = null;
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    mouseStartX.current = e.clientX;
-    setIsDragging(true);
-  };
-
-  const handleMouseUp = (e: React.MouseEvent) => {
-    if (mouseStartX.current !== null) {
-      const deltaX = e.clientX - mouseStartX.current;
-      if (Math.abs(deltaX) > 40) {
-        if (deltaX < 0) {
-          setActive((p) => Math.min(p + 1, services.length - 1));
-        } else {
-          setActive((p) => Math.max(p - 1, 0));
-        }
-      }
-    }
-    mouseStartX.current = null;
-    setIsDragging(false);
-  };
-
   // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -696,21 +621,8 @@ export function ServicesShelf() {
           {/* ── LEFT: 3D Bookshelf Canvas ── */}
           <div>
             <div
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
-              onMouseDown={handleMouseDown}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={() => {
-                mouseStartX.current = null;
-                setIsDragging(false);
-              }}
-              className={`relative w-full select-none overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)] ${
-                isDragging ? "cursor-grabbing" : "cursor-grab"
-              }`}
-              style={{
-                height: "clamp(300px, 52vw, 470px)",
-                touchAction: "pan-y",
-              }}
+              className="relative w-full overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]"
+              style={{ height: "clamp(300px, 52vw, 470px)" }}
             >
               {/* Canvas */}
               <Canvas
@@ -729,7 +641,7 @@ export function ServicesShelf() {
               {/* Touch hint for mobile */}
               <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 lg:hidden">
                 <span className="glass-dark rounded-full px-4 py-1.5 text-xs text-white/55">
-                  اسحب أو انقر على الكتاب لفتحه
+                  انقر على الكتاب لفتحه
                 </span>
               </div>
             </div>
