@@ -1,4 +1,3 @@
-import { SlashIntro } from "@/components/sections/SlashIntro";
 import type { Metadata, Viewport } from "next";
 import "@/styles/globals.css";
 import { alexandria, outfit, plex } from "@/lib/fonts";
@@ -38,8 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <a href="#main" className="skip-link">
             تخطّي إلى المحتوى
           </a>
-          <SlashIntro />
-        <ScrollProgress />
+          <ScrollProgress />
           <Navbar />
           <main id="main">{children}</main>
           <Footer />
