@@ -1,0 +1,492 @@
+@import "tailwindcss";
+
+@theme {
+  --color-chrome: #dce0e9;
+  --color-navy: #101224;
+  --color-electric: #536cff;
+  --color-holo: #a66aff;
+  --color-iris: #f18ddb;
+  --color-soft: #f3f4f8;
+  --color-ink: #1a1d33;
+  --color-ink-soft: #4a4f6b;
+
+  --font-display: var(--font-alexandria), var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-plex), var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-latin: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  --holo-gradient: linear-gradient(
+    115deg,
+    #536cff 0%,
+    #a66aff 28%,
+    #f18ddb 52%,
+    #dce0e9 74%,
+    #536cff 100%
+  );
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: #fff;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.85; /* Arabic needs generous leading */
+  overflow-x: clip;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: var(--color-holo);
+  color: #fff;
+}
+
+/* ---------- accessibility ---------- */
+:focus-visible {
+  outline: 3px solid var(--color-electric);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+.on-dark :focus-visible {
+  outline-color: #fff;
+}
+
+.skip-link {
+  position: fixed;
+  inset-inline-start: 1rem;
+  top: -4rem;
+  z-index: 100;
+  background: var(--color-navy);
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 999px;
+  transition: top 0.2s;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------- material utilities ---------- */
+.glass {
+  background: rgb(255 255 255 / 0.62);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid rgb(255 255 255 / 0.7);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.9) inset,
+    0 10px 40px -12px rgb(16 18 36 / 0.25);
+}
+
+.glass-dark {
+  background: rgb(255 255 255 / 0.06);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid rgb(255 255 255 / 0.16);
+}
+
+/* metallic outline: a 1px gradient ring that doesn't need an extra element */
+.chrome-ring {
+  position: relative;
+}
+.chrome-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #fff 0%, #b9bfd0 30%, #f4f5fa 52%, #98a0b8 78%, #fff 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* holographic ring that fades in and drifts on hover */
+.holo-ring {
+  position: relative;
+}
+.holo-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: var(--holo-gradient);
+  background-size: 250% 250%;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.45s var(--ease-out-expo);
+  animation: holo-drift 6s linear infinite;
+  pointer-events: none;
+}
+.holo-ring:hover::after,
+.holo-ring:focus-within::after {
+  opacity: 1;
+}
+
+@keyframes holo-drift {
+  to {
+    background-position: 250% 250%;
+  }
+}
+
+.holo-text {
+  background: var(--holo-gradient);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: holo-text 8s ease-in-out infinite alternate;
+}
+@keyframes holo-text {
+  to {
+    background-position: 100% 0;
+  }
+}
+
+/* soft metallic section backdrop for light sections */
+.bg-silver {
+  /* chrome/neutral: no colour washes, just a soft metallic sheen */
+  background:
+    radial-gradient(80% 45% at 50% 0%, rgb(255 255 255 / 0.95), transparent 70%),
+    linear-gradient(180deg, #f3f4f8 0%, #e6e9f1 100%);
+}
+
+.bg-night {
+  /* midnight navy with ONE focal holographic glow (move it with --gx / --gy) */
+  background:
+    radial-gradient(46% 52% at var(--gx, 78%) var(--gy, 18%), rgb(83 108 255 / 0.20), rgb(166 106 255 / 0.09) 48%, transparent 74%),
+    linear-gradient(180deg, #101224 0%, #0b0c1a 100%);
+}
+
+/* fine film grain for dark hero surfaces */
+.grain {
+  position: relative;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.09;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* dark glass navigation pill */
+.nav-glass {
+  background: rgb(16 18 36 / 0.68);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.12) inset,
+    0 20px 50px -22px rgb(0 0 0 / 0.7);
+}
+
+/* photo treatment: pulls any stock photo toward the palette */
+.photo-tone {
+  filter: saturate(0.82) contrast(1.06) brightness(0.92);
+}
+.photo-tint {
+  background: linear-gradient(135deg, rgb(83 108 255 / 0.28), rgb(166 106 255 / 0.12) 55%, rgb(241 141 219 / 0.18));
+  mix-blend-mode: soft-light;
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+  padding: 0.7rem 1.75rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.4;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    transform 0.25s var(--ease-out-expo),
+    box-shadow 0.35s,
+    background-color 0.3s,
+    color 0.3s;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-lg {
+  min-height: 3.5rem;
+  padding-inline: 2.1rem;
+  font-size: 1.0625rem;
+}
+
+/* sweeping highlight shared by all buttons */
+.btn::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -70%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.75), transparent);
+  transform: skewX(-20deg);
+  transition: inset-inline-start 0.75s var(--ease-out-expo);
+  z-index: -1;
+}
+.btn:hover::before {
+  inset-inline-start: 130%;
+}
+
+.btn-chrome {
+  color: var(--color-navy);
+  background: linear-gradient(180deg, #ffffff 0%, #dce0e9 48%, #c3c9d8 52%, #eef0f6 100%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.9) inset,
+    0 -2px 6px rgb(16 18 36 / 0.14) inset,
+    0 8px 24px -8px rgb(83 108 255 / 0.55);
+}
+.btn-chrome:hover {
+  box-shadow:
+    0 0 0 1px #fff inset,
+    0 -2px 6px rgb(16 18 36 / 0.14) inset,
+    0 12px 32px -6px rgb(166 106 255 / 0.65);
+}
+
+.btn-glass {
+  color: #fff;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.btn-glass:hover {
+  background: rgb(255 255 255 / 0.16);
+  border-color: rgb(255 255 255 / 0.55);
+}
+
+.btn-outline {
+  color: var(--color-navy);
+  border: 1.5px solid var(--color-navy);
+  background: transparent;
+}
+.btn-outline:hover {
+  background: var(--color-navy);
+  color: #fff;
+}
+
+.btn-holo {
+  color: #fff;
+  background: var(--holo-gradient);
+  background-size: 220% 100%;
+  box-shadow: 0 10px 30px -10px rgb(166 106 255 / 0.7);
+  transition:
+    background-position 0.8s var(--ease-out-expo),
+    transform 0.25s var(--ease-out-expo);
+}
+.btn-holo:hover {
+  background-position: 100% 0;
+}
+
+/* ---------- misc ---------- */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* the moving reflective light on cards (driven by --mx / --my set in JS) */
+.card-light {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    380px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(255 255 255 / 0.85),
+    rgb(166 106 255 / 0.12) 40%,
+    transparent 70%
+  );
+  mix-blend-mode: soft-light;
+  transition: opacity 0.35s;
+}
+.group:hover .card-light {
+  opacity: 1;
+}
+
+/* chrome "horizon" gradient text for large Latin words on light surfaces */
+.chrome-text {
+  background: linear-gradient(
+    180deg,
+    #2a2f55 0%,
+    #8d96b8 42%,
+    #e9ebf3 50%,
+    #5b6392 56%,
+    #1a1d33 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* gentle idle float for decorative SVG stars */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(6deg); }
+}
+.float-slow { animation: float-y 7s ease-in-out infinite; }
+.float-slower { animation: float-y 10s ease-in-out infinite reverse; }
+
+/* animated holographic art panel used for concept previews and service heroes */
+.holo-art {
+  /* fallback / abstract art: dark base, three restrained colour pools */
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(50% 50% at var(--ax, 20%) var(--ay, 25%), rgb(83 108 255 / 0.7), transparent 70%),
+    radial-gradient(45% 45% at var(--bx, 80%) var(--by, 30%), rgb(166 106 255 / 0.6), transparent 70%),
+    radial-gradient(50% 50% at var(--cx, 50%) var(--cy, 85%), rgb(241 141 219 / 0.45), transparent 70%),
+    linear-gradient(135deg, #1a1d38, #101224);
+  background-size: 140% 140%;
+  animation: holo-pan 14s ease-in-out infinite alternate;
+}
+@keyframes holo-pan {
+  to { background-position: 100% 60%; }
+}
+
+/* chrome band behind the marquee: polished-metal gradient with a bright top edge */
+.chrome-band {
+  background: linear-gradient(180deg, #ffffff 0%, #dce0e9 46%, #b4bbce 54%, #eef0f6 100%);
+  box-shadow:
+    0 1px 0 #fff inset,
+    0 -1px 0 rgb(16 18 36 / 0.12) inset,
+    0 18px 40px -18px rgb(16 18 36 / 0.55);
+}
+
+/* ---------- electric-blue "signal" surface (hero, service hero, CTA) ----------
+   Vivid blue field with a purple bloom, fused with the logo's chrome silver. */
+.bg-signal {
+  background:
+    radial-gradient(52% 60% at var(--gx, 28%) var(--gy, 46%), rgb(166 106 255 / 0.55), transparent 70%),
+    radial-gradient(70% 50% at 85% 0%, rgb(255 255 255 / 0.14), transparent 65%),
+    linear-gradient(180deg, #4560ff 0%, #2f46e6 55%, #1b2bb8 100%);
+}
+
+/* silver headline accent that reads on blue: chrome -> white -> pink glint */
+.holo-text-light {
+  background: linear-gradient(100deg, #cfd5e6 0%, #ffffff 35%, #dfe3f0 55%, #f6b6ec 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: holo-text 8s ease-in-out infinite alternate;
+}
+
+/* perspective grid floor (CSS only), inspired by the pace of the reference, drawn in chrome-white lines */
+.grid-floor {
+  position: absolute;
+  inset-inline: -40%;
+  bottom: 0;
+  height: 55%;
+  transform: perspective(520px) rotateX(62deg);
+  transform-origin: 50% 100%;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.28) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 90%);
+  mask-image: linear-gradient(to top, #000 10%, transparent 90%);
+  animation: grid-run 3.2s linear infinite;
+}
+@keyframes grid-run {
+  to {
+    background-position: 0 64px, 64px 0;
+  }
+}
+
+/* conic light rays */
+.rays {
+  background: repeating-conic-gradient(from 0deg at 50% 100%, rgb(255 255 255 / 0.1) 0deg 6deg, transparent 6deg 18deg);
+  -webkit-mask-image: radial-gradient(70% 90% at 50% 100%, #000, transparent 75%);
+  mask-image: radial-gradient(70% 90% at 50% 100%, #000, transparent 75%);
+}
+
+/* concentric chrome rings that breathe */
+@property --ring {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+.rings {
+  position: absolute;
+  border-radius: 9999px;
+  aspect-ratio: 1;
+  background: repeating-radial-gradient(circle, transparent 0 calc(var(--ring) + 38px), rgb(220 224 233 / 0.5) calc(var(--ring) + 38px) calc(var(--ring) + 40px));
+  animation: ring-pulse 6s ease-in-out infinite alternate;
+}
+@keyframes ring-pulse {
+  from { --ring: 0px; }
+  to { --ring: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grid-floor, .rings, .holo-text-light { animation: none; }
+}
+
+/* intro failsafe: if scripts never run, the opening cover removes itself */
+.intro-root {
+  animation: intro-failsafe 0s 4s forwards;
+}
+@keyframes intro-failsafe {
+  to {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
