@@ -27,14 +27,14 @@ export function Footer() {
     >
       {/* holographic hairline: the one colour accent in the footer */}
       <div aria-hidden className="h-px w-full" style={{ background: "var(--holo-gradient)" }} />
-      <div className="mx-auto grid max-w-6xl gap-12 px-6 py-16 md:grid-cols-[1.4fr_1fr_1.2fr_1fr]">
+      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.2fr_1fr] lg:gap-12 lg:py-16">
         <div>
           <Image
             src="/brand/logo-b.webp"
             alt="BAREEQ"
             width={900}
             height={693}
-            className="h-20 w-auto drop-shadow-[0_8px_30px_rgb(83_108_255/0.35)]"
+            className="h-14 sm:h-16 lg:h-20 w-auto drop-shadow-[0_8px_30px_rgb(83_108_255/0.35)]"
           />
           <p className="mt-5 max-w-xs text-[0.95rem] text-white/65">
             وكالة تجمع بين الذكاء الاصطناعي والأتمتة وتطوير تجربة العملاء والإبداع البصري، لمساعدة

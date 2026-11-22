@@ -379,7 +379,7 @@ export function ServicesShelf() {
   }, []);
 
   return (
-    <div className="bg-night grain relative overflow-hidden py-24 md:py-32"
+    <div className="bg-night grain relative overflow-hidden py-20 md:py-28 lg:py-32"
       style={{ "--gx": "60%", "--gy": "30%" } as React.CSSProperties}
     >
       {/* Ambient category glow */}
@@ -414,7 +414,7 @@ export function ServicesShelf() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-            className="font-display text-4xl font-bold text-white md:text-5xl"
+            className="font-display text-3xl font-bold text-white sm:text-4xl md:text-5xl"
           >
             كل اللي بيزنسك محتاجه
             <br />
@@ -423,13 +423,13 @@ export function ServicesShelf() {
         </div>
 
         {/* ── Two-Column: Shelf Canvas + Detail Panel ── */}
-        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[1fr_380px]">
+        <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[1fr_380px] lg:gap-10">
 
           {/* ── LEFT: 3D Shelf Canvas ── */}
           <div>
             <div
               className="relative w-full overflow-hidden rounded-2xl"
-              style={{ height: "420px" }}
+              style={{ height: "clamp(280px, 50vw, 460px)" }}
             >
               {/* Canvas */}
               <Canvas
@@ -479,7 +479,7 @@ export function ServicesShelf() {
           </div>
 
           {/* ── RIGHT: Editorial Detail Panel ── */}
-          <div className="lg:ps-6">
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-6 lg:border-0 lg:bg-transparent lg:p-0 lg:ps-6">
             {/* Service icon */}
             <motion.div
               key={service.slug + "-icon"}

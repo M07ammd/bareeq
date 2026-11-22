@@ -31,7 +31,7 @@ export function AboutSection({ asPage = false }: { asPage?: boolean }) {
           description="BAREEQ وكالة تجمع بين الذكاء الاصطناعي، الأتمتة الذكية، تطوير تجربة العملاء، والإبداع البصري لمساعدة البيزنس على التطور والنمو."
         />
 
-        <ul className="mt-16 grid divide-navy/10 md:grid-cols-3 md:divide-x md:divide-x-reverse">
+        <ul className="mt-12 sm:mt-16 grid divide-y divide-navy/10 md:grid-cols-3 md:divide-y-0 md:divide-x md:divide-x-reverse">
           {pillars.map((p, i) => (
             <Reveal as="li" key={p.word} delay={i * 0.1} className="list-none py-8 md:px-10 md:first:ps-0 md:last:pe-0">
               <p

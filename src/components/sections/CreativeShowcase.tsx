@@ -149,7 +149,7 @@ export function CreativeShowcase() {
                 type="button"
                 onClick={() => setActive(item)}
                 aria-haspopup="dialog"
-                className="group chrome-ring holo-ring relative block h-full w-full overflow-hidden rounded-[1.75rem] text-start"
+                className="group chrome-ring holo-ring relative block h-full w-full min-h-[18rem] overflow-hidden rounded-[1.75rem] text-start"
               >
                 <Art item={item} />
                 <div

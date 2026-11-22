@@ -116,7 +116,7 @@ export function Hero() {
           TWO-COLUMN LAYOUT
           Left: Text  |  Right: 3D Network
           ═══════════════════════════════════════════════ */}
-      <div className="relative z-[2] mx-auto grid min-h-[100svh] max-w-7xl grid-cols-1 items-center gap-10 px-6 py-24 md:grid-cols-2 md:gap-6 md:py-0">
+      <div className="relative z-[2] mx-auto grid min-h-[100svh] max-w-7xl grid-cols-1 items-center gap-8 px-5 py-28 sm:px-6 md:grid-cols-2 md:gap-6 md:py-0">
 
         {/* ── LEFT: Content ── */}
         <motion.div
@@ -127,7 +127,7 @@ export function Hero() {
           {/* Headline */}
           <h1
             id="hero-title"
-            className="mb-6 font-display text-4xl font-bold text-white sm:text-5xl lg:text-[3.5rem]"
+            className="mb-6 font-display text-[2rem] font-bold text-white sm:text-4xl md:text-5xl lg:text-[3.5rem]"
           >
             <HeroLine text="حلول ذكية." delay={0.3} />
             <HeroLine text="تجارب مختلفة." delay={0.45} />
@@ -139,7 +139,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease, delay: 0.9 }}
-            className="mb-10 max-w-md text-base leading-relaxed text-white/70 md:text-lg"
+            className="mb-10 max-w-md text-sm leading-relaxed text-white/70 sm:text-base md:text-lg"
           >
             نساعد البيزنس يشتغل بذكاء، يطوّر تجربة عملائه، ويخلق حضور أقوى
             باستخدام الذكاء الاصطناعي والأتمتة والإبداع.
@@ -169,7 +169,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease, delay: 1.4 }}
-            className="mt-12 grid grid-cols-3 gap-4 border-t border-white/10 pt-8"
+            className="mt-10 grid grid-cols-3 gap-3 border-t border-white/10 pt-6 sm:gap-4 sm:pt-8"
           >
             {[
               { n: "٩+", label: "خدمة" },
@@ -186,32 +186,32 @@ export function Hero() {
           </motion.div>
         </motion.div>
 
-        {/* ── RIGHT: 3D Network Scene ── */}
+        {/* ── RIGHT: 3D Sculpture Scene (Responsive: visible on mobile & desktop) ── */}
         <motion.div
           style={{ y: sceneY }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1.4, delay: 0.4 }}
-          className="relative hidden h-[480px] w-full md:block lg:h-[560px]"
+          transition={{ duration: 1.4, delay: 0.3 }}
+          className="relative flex h-[320px] w-full items-center justify-center sm:h-[400px] md:h-[480px] lg:h-[560px]"
           aria-hidden
         >
           {/* Glow rings behind canvas */}
           <div
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{
-              width: "420px",
-              height: "420px",
+              width: "min(420px, 80vw)",
+              height: "min(420px, 80vw)",
               background:
                 "radial-gradient(circle, rgb(83 108 255 / 0.18) 0%, transparent 70%)",
             }}
           />
           <div
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.06]"
-            style={{ width: "380px", height: "380px" }}
+            style={{ width: "min(380px, 72vw)", height: "min(380px, 72vw)" }}
           />
           <div
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.04]"
-            style={{ width: "280px", height: "280px" }}
+            style={{ width: "min(280px, 55vw)", height: "min(280px, 55vw)" }}
           />
 
           {/* The actual Three.js canvas fills this container */}
@@ -219,19 +219,19 @@ export function Hero() {
             <HeroScene />
           </div>
 
-          {/* Service badges floating around the network */}
+          {/* Service badges floating around the sculpture (safely positioned, desktop/tablet only) */}
           {[
-            { label: "تسويق رقمي", x: "8%", y: "18%", delay: 1.0 },
+            { label: "تسويق رقمي", x: "8%", y: "16%", delay: 1.0 },
             { label: "أتمتة", x: "72%", y: "12%", delay: 1.2 },
-            { label: "تصميم", x: "80%", y: "72%", delay: 1.4 },
-            { label: "ذكاء اصطناعي", x: "5%", y: "72%", delay: 1.6 },
+            { label: "تصميم", x: "78%", y: "76%", delay: 1.4 },
+            { label: "ذكاء اصطناعي", x: "6%", y: "74%", delay: 1.6 },
           ].map((b) => (
             <motion.div
               key={b.label}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, ease, delay: b.delay }}
-              className="glass absolute rounded-full px-3 py-1.5 text-xs font-medium text-white/80"
+              className="glass pointer-events-none absolute hidden rounded-full px-3 py-1.5 text-xs font-medium text-white/85 shadow-lg backdrop-blur-md sm:block"
               style={{ left: b.x, top: b.y }}
             >
               {b.label}
@@ -239,17 +239,6 @@ export function Hero() {
           ))}
         </motion.div>
       </div>
-
-      {/* Mobile: show network below text */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1.4, delay: 0.6 }}
-        className="relative mx-auto mb-8 h-[260px] w-full max-w-sm md:hidden"
-        aria-hidden
-      >
-        <HeroScene />
-      </motion.div>
 
       {/* Scroll cue */}
       <motion.div
