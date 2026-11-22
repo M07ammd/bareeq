@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useEffect, useMemo, useCallback } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useRef, useState, useEffect, useMemo } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
@@ -78,10 +78,9 @@ export const BOOK_COVERS: Record<
   },
 };
 
-const BOOK_SPACING = 1.62;
-
 /**
  * Procedural high-resolution canvas texture generator for book covers.
+ * Creates an authentic clothbound book texture with embossed foil typography.
  */
 function useBookCoverTexture(config: (typeof BOOK_COVERS)[string]) {
   return useMemo(() => {
@@ -201,14 +200,14 @@ function useBookCoverTexture(config: (typeof BOOK_COVERS)[string]) {
 function ServiceBookMesh({
   index,
   total,
-  currentOffset,
+  isActive,
   onClick,
   slug,
   still,
 }: {
   index: number;
   total: number;
-  currentOffset: number;
+  isActive: boolean;
   onClick: () => void;
   slug: string;
   still: boolean;
@@ -217,50 +216,62 @@ function ServiceBookMesh({
   const config = BOOK_COVERS[slug] ?? BOOK_COVERS["ai-automation"];
   const coverTexture = useBookCoverTexture(config);
 
-  const baseX = (index - (total - 1) / 2) * BOOK_SPACING;
+  const targetX = (index - (total - 1) / 2) * 1.58;
 
   useFrame((state, delta) => {
     if (!groupRef.current || still) return;
     const t = state.clock.elapsedTime;
 
-    // How close is this book to the center viewport?
-    const distFromCenter = Math.abs(index - currentOffset);
-    const isFocused = distFromCenter < 0.45;
-
-    // Fluid interpolation for position and rotation based on proximity
-    const targetY = isFocused ? 0.3 + Math.sin(t * 1.5) * 0.04 : 0;
-    const targetZ = isFocused ? 0.8 : 0;
-    // Facing square when centered, angled 3/4 when resting on the shelf
-    const targetRotY = THREE.MathUtils.lerp(
-      0.24,
-      Math.sin(t * 0.6) * 0.02,
-      Math.max(0, 1 - distFromCenter * 1.3)
+    // Position damping
+    groupRef.current.position.x = THREE.MathUtils.damp(
+      groupRef.current.position.x,
+      targetX,
+      5,
+      delta
     );
 
-    groupRef.current.position.x = baseX;
+    // Interactive mouse / touch tilt for active book
+    const pointerTiltY = isActive ? state.pointer.x * 0.22 : 0;
+    const pointerTiltX = isActive ? -state.pointer.y * 0.14 : 0;
+
+    // When active: lifts up, floats gently, steps forward, and faces viewer
+    const targetY = isActive ? 0.28 + Math.sin(t * 1.5) * 0.04 : 0;
+    const targetZ = isActive ? 0.75 : 0;
+    const targetRotY = isActive
+      ? Math.sin(t * 0.6) * 0.03 + pointerTiltY
+      : 0.22 + (index - (total - 1) / 2) * -0.05; // 3/4 display angle showing spine & cover
+
     groupRef.current.position.y = THREE.MathUtils.damp(
       groupRef.current.position.y,
       targetY,
-      5,
+      4,
       delta
     );
     groupRef.current.position.z = THREE.MathUtils.damp(
       groupRef.current.position.z,
       targetZ,
-      5,
+      4,
       delta
     );
     groupRef.current.rotation.y = THREE.MathUtils.damp(
       groupRef.current.rotation.y,
       targetRotY,
-      5,
+      4,
       delta
     );
 
-    if (!isFocused) {
+    // Subtle idle breathing tilt or active pointer tilt
+    if (!isActive) {
       groupRef.current.rotation.x = THREE.MathUtils.damp(
         groupRef.current.rotation.x,
         Math.sin(t * 0.5 + index) * 0.02,
+        3,
+        delta
+      );
+    } else {
+      groupRef.current.rotation.x = THREE.MathUtils.damp(
+        groupRef.current.rotation.x,
+        pointerTiltX,
         3,
         delta
       );
@@ -268,7 +279,7 @@ function ServiceBookMesh({
   });
 
   return (
-    <group ref={groupRef} position={[baseX, 0, 0]} onClick={onClick}>
+    <group ref={groupRef} position={[targetX, 0, 0]} onClick={onClick}>
       {/* ── 1. Front Hardcover Board with Foil Title Texture ── */}
       <group position={[0, 0, 0.07]}>
         <RoundedBox args={[1.15, 1.68, 0.024]} radius={0.035} smoothness={4}>
@@ -280,6 +291,7 @@ function ServiceBookMesh({
             clearcoatRoughness={0.15}
           />
         </RoundedBox>
+        {/* Cover Face Plate with high-res Canvas Texture */}
         {coverTexture && (
           <mesh position={[0, 0, 0.013]}>
             <planeGeometry args={[1.14, 1.67]} />
@@ -317,6 +329,7 @@ function ServiceBookMesh({
             clearcoat={0.6}
           />
         </RoundedBox>
+        {/* Golden bookmark ribbon edge at top of spine */}
         <mesh position={[0, 0.842, 0]}>
           <boxGeometry args={[0.028, 0.012, 0.06]} />
           <meshBasicMaterial color={config.foil} />
@@ -334,27 +347,29 @@ function ServiceBookMesh({
         </RoundedBox>
       </group>
 
-      {/* ── 5. Ambient Glow Halo ── */}
-      <mesh position={[0, 0, -0.1]}>
-        <planeGeometry args={[1.7, 2.3]} />
-        <meshBasicMaterial
-          color={config.accent}
-          transparent
-          opacity={0.16}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
+      {/* ── 5. Active Ambient Glow Halo ── */}
+      {isActive && (
+        <mesh position={[0, 0, -0.1]}>
+          <planeGeometry args={[1.7, 2.3]} />
+          <meshBasicMaterial
+            color={config.accent}
+            transparent
+            opacity={0.18}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
     </group>
   );
 }
 
 // ── Shelf Platform ───────────────────────────────────────────────────────────
 function Shelf({ count }: { count: number }) {
-  const width = count * BOOK_SPACING + 2.4;
+  const width = count * 1.58 + 1.2;
   return (
     <group position={[0, -1.06, 0]}>
       {/* Sleek dark metallic shelf plank */}
-      <RoundedBox args={[width, 0.09, 0.68]} radius={0.03} smoothness={4}>
+      <RoundedBox args={[width, 0.09, 0.65]} radius={0.03} smoothness={4}>
         <meshPhysicalMaterial
           color="#16182e"
           roughness={0.25}
@@ -364,7 +379,7 @@ function Shelf({ count }: { count: number }) {
         />
       </RoundedBox>
       {/* Front metallic trim highlight */}
-      <mesh position={[0, 0, 0.34]}>
+      <mesh position={[0, 0, 0.326]}>
         <boxGeometry args={[width, 0.02, 0.005]} />
         <meshBasicMaterial color="#536cff" transparent opacity={0.6} />
       </mesh>
@@ -397,28 +412,39 @@ function SceneLights({ activeSlug }: { activeSlug: string }) {
   );
 }
 
-// ── Main Canvas Scene with Smooth Physics Drag & Swipe ──────────────────────
+// ── Main Canvas Scene ────────────────────────────────────────────────────────
 function ShelfScene({
-  scrollPos,
   activeIndex,
   onSelect,
   still,
 }: {
-  scrollPos: number;
   activeIndex: number;
   onSelect: (i: number) => void;
   still: boolean;
 }) {
-  const shelfGroupRef = useRef<THREE.Group>(null);
+  const { size } = useThree();
+  const isMobile = size.width < 768;
 
   useFrame((state, delta) => {
-    if (still || !shelfGroupRef.current) return;
-    // Shelf translates horizontally so the selected/dragged book is centered
-    const targetGroupX = (scrollPos - (services.length - 1) / 2) * -BOOK_SPACING;
-    shelfGroupRef.current.position.x = THREE.MathUtils.damp(
-      shelfGroupRef.current.position.x,
-      targetGroupX,
-      6.5,
+    if (still) return;
+    // Camera gently centers slightly on the active book (more centered on mobile)
+    const trackFactor = isMobile ? -1.18 : -0.32;
+    const targetX = (activeIndex - (services.length - 1) / 2) * trackFactor;
+    
+    // Smooth pointer parallax for mouse & touch
+    const parallaxX = state.pointer.x * 0.25;
+    const parallaxY = state.pointer.y * 0.15;
+
+    state.camera.position.x = THREE.MathUtils.damp(
+      state.camera.position.x,
+      targetX + parallaxX,
+      2.5,
+      delta
+    );
+    state.camera.position.y = THREE.MathUtils.damp(
+      state.camera.position.y,
+      0.16 + parallaxY,
+      2,
       delta
     );
   });
@@ -426,32 +452,24 @@ function ShelfScene({
   return (
     <>
       <SceneLights activeSlug={services[activeIndex].slug} />
-      <group ref={shelfGroupRef}>
-        <Shelf count={services.length} />
-        {services.map((s, i) => (
-          <ServiceBookMesh
-            key={s.slug}
-            index={i}
-            total={services.length}
-            currentOffset={scrollPos}
-            onClick={() => onSelect(i)}
-            slug={s.slug}
-            still={still}
-          />
-        ))}
-      </group>
+      <Shelf count={services.length} />
+      {services.map((s, i) => (
+        <ServiceBookMesh
+          key={s.slug}
+          index={i}
+          total={services.length}
+          isActive={i === activeIndex}
+          onClick={() => onSelect(i)}
+          slug={s.slug}
+          still={still}
+        />
+      ))}
     </>
   );
 }
 
 // ── Detail Panel ─────────────────────────────────────────────────────────────
-function DetailPanel({
-  service,
-  categoryLabel,
-}: {
-  service: (typeof services)[0];
-  categoryLabel: string;
-}) {
+function DetailPanel({ service, categoryLabel }: { service: (typeof services)[0]; categoryLabel: string }) {
   const config = BOOK_COVERS[service.slug] ?? BOOK_COVERS["ai-automation"];
   const ease = [0.16, 1, 0.3, 1] as [number, number, number, number];
 
@@ -469,10 +487,7 @@ function DetailPanel({
         <div className="mb-4 flex items-center gap-3">
           <span
             className="h-2.5 w-2.5 rounded-full"
-            style={{
-              background: config.accent,
-              boxShadow: `0 0 12px ${config.accent}`,
-            }}
+            style={{ background: config.accent, boxShadow: `0 0 12px ${config.accent}` }}
           />
           <span className="font-latin text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-white/50">
             {config.volume} • {categoryLabel}
@@ -561,107 +576,69 @@ function IndexDots({
   );
 }
 
-// ── Root Component with Drag & Swipe Gesture Handling ──────────────────────
+// ── Root Component ───────────────────────────────────────────────────────────
 export function ServicesShelf() {
   const reduced = useReducedMotion();
   const [active, setActive] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
-
-  const startX = useRef(0);
-  const startActive = useRef(0);
-  const lastX = useRef(0);
-  const isPointerDown = useRef(false);
-
   const service = services[active];
   const category = categories.find((c) => c.id === service.category);
   const config = BOOK_COVERS[service.slug] ?? BOOK_COVERS["ai-automation"];
 
-  // Total continuous scroll position = active snapped index + ongoing drag offset
-  const continuousScrollPos = Math.max(
-    0,
-    Math.min(services.length - 1, active + dragOffset)
-  );
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const mouseStartX = useRef<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  // Pointer Down (Mouse click / Finger touch)
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    isPointerDown.current = true;
-    startX.current = e.clientX;
-    lastX.current = e.clientX;
-    startActive.current = active;
-    setIsDragging(true);
-    setHasInteracted(true);
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
   };
 
-  // Pointer Move (Dragging)
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPointerDown.current) return;
-    const dx = e.clientX - startX.current;
-    lastX.current = e.clientX;
-
-    // Convert pixel drag to fractional book index (~140px = 1 full book width)
-    const dragFraction = -dx / 150;
-    setDragOffset(dragFraction);
-
-    // Update active highlight dynamically as user drags past midpoints
-    const previewIndex = Math.round(
-      Math.max(0, Math.min(services.length - 1, startActive.current + dragFraction))
-    );
-    if (previewIndex !== active) {
-      setActive(previewIndex);
-    }
-  };
-
-  // Pointer Up / Cancel (Release finger or mouse)
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPointerDown.current) return;
-    isPointerDown.current = false;
-    setIsDragging(false);
-
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {}
-
-    const totalDx = lastX.current - startX.current;
-
-    // If dragged with notable distance, snap towards that direction
-    let finalIndex = startActive.current;
-    if (Math.abs(totalDx) > 35) {
-      const shift = Math.round(-totalDx / 130);
-      const target = startActive.current + (shift === 0 ? (totalDx < 0 ? 1 : -1) : shift);
-      finalIndex = Math.max(0, Math.min(services.length - 1, target));
-    } else {
-      finalIndex = active;
-    }
-
-    setActive(finalIndex);
-    setDragOffset(0);
-  };
-
-  // Trackpad / Shift-wheel horizontal scroll
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    if (Math.abs(e.deltaX) > 30) {
-      setHasInteracted(true);
-      if (e.deltaX > 0) {
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 35) {
+      if (deltaX < 0) {
+        // Swiped left
         setActive((p) => Math.min(p + 1, services.length - 1));
       } else {
+        // Swiped right
         setActive((p) => Math.max(p - 1, 0));
       }
     }
-  }, []);
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    mouseStartX.current = e.clientX;
+    setIsDragging(true);
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (mouseStartX.current !== null) {
+      const deltaX = e.clientX - mouseStartX.current;
+      if (Math.abs(deltaX) > 40) {
+        if (deltaX < 0) {
+          setActive((p) => Math.min(p + 1, services.length - 1));
+        } else {
+          setActive((p) => Math.max(p - 1, 0));
+        }
+      }
+    }
+    mouseStartX.current = null;
+    setIsDragging(false);
+  };
 
   // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         setActive((p) => Math.min(p + 1, services.length - 1));
-        setHasInteracted(true);
       }
       if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         setActive((p) => Math.max(p - 1, 0));
-        setHasInteracted(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -716,74 +693,54 @@ export function ServicesShelf() {
         {/* ── Two-Column: Bookshelf Canvas + Detail Panel ── */}
         <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[1fr_390px] lg:gap-12">
 
-          {/* ── LEFT: Interactive 3D Bookshelf Canvas ── */}
+          {/* ── LEFT: 3D Bookshelf Canvas ── */}
           <div>
             <div
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              onWheel={handleWheel}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={() => {
+                mouseStartX.current = null;
+                setIsDragging(false);
+              }}
               className={`relative w-full select-none overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)] ${
                 isDragging ? "cursor-grabbing" : "cursor-grab"
               }`}
               style={{
-                height: "clamp(320px, 54vw, 480px)",
+                height: "clamp(300px, 52vw, 470px)",
                 touchAction: "pan-y",
               }}
             >
               {/* Canvas */}
               <Canvas
                 dpr={[1, 1.5]}
-                camera={{ position: [0, 0.45, 7.3], fov: 41 }}
-                gl={{
-                  antialias: true,
-                  alpha: true,
-                  powerPreference: "high-performance",
-                }}
+                camera={{ position: [0, 0.45, 7.4], fov: 40 }}
+                gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
                 style={{ background: "transparent" }}
               >
                 <ShelfScene
-                  scrollPos={continuousScrollPos}
                   activeIndex={active}
-                  onSelect={(idx) => {
-                    setActive(idx);
-                    setDragOffset(0);
-                  }}
+                  onSelect={setActive}
                   still={!!reduced}
                 />
               </Canvas>
 
-              {/* Interactive swipe/drag hint */}
-              <motion.div
-                initial={{ opacity: 0.9 }}
-                animate={{ opacity: hasInteracted ? 0 : 0.9 }}
-                transition={{ duration: 0.6 }}
-                className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2"
-              >
-                <span className="glass-dark rounded-full px-4 py-1.5 text-xs font-medium text-white/70 shadow-lg backdrop-blur-md">
-                  اسحب بالماوس أو باللمس لتصفح الكتب ⟷
+              {/* Touch hint for mobile */}
+              <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 lg:hidden">
+                <span className="glass-dark rounded-full px-4 py-1.5 text-xs text-white/55">
+                  اسحب أو انقر على الكتاب لفتحه
                 </span>
-              </motion.div>
+              </div>
             </div>
 
             {/* Nav Controls */}
             <div className="mt-6 flex items-center justify-between">
-              <IndexDots
-                total={services.length}
-                active={active}
-                onSelect={(idx) => {
-                  setActive(idx);
-                  setDragOffset(0);
-                }}
-              />
+              <IndexDots total={services.length} active={active} onSelect={setActive} />
               {/* Prev/Next Buttons */}
               <div className="flex gap-2.5">
                 <button
-                  onClick={() => {
-                    setActive((p) => Math.max(p - 1, 0));
-                    setDragOffset(0);
-                  }}
+                  onClick={() => setActive((p) => Math.max(p - 1, 0))}
                   disabled={active === 0}
                   className="glass-dark grid h-10 w-10 place-items-center rounded-full text-white/70 transition-all hover:bg-white/15 hover:text-white disabled:opacity-25"
                   aria-label="الكتاب السابق"
@@ -791,10 +748,7 @@ export function ServicesShelf() {
                   ←
                 </button>
                 <button
-                  onClick={() => {
-                    setActive((p) => Math.min(p + 1, services.length - 1));
-                    setDragOffset(0);
-                  }}
+                  onClick={() => setActive((p) => Math.min(p + 1, services.length - 1))}
                   disabled={active === services.length - 1}
                   className="glass-dark grid h-10 w-10 place-items-center rounded-full text-white/70 transition-all hover:bg-white/15 hover:text-white disabled:opacity-25"
                   aria-label="الكتاب التالي"
@@ -834,10 +788,7 @@ export function ServicesShelf() {
             return (
               <button
                 key={s.slug}
-                onClick={() => {
-                  setActive(idx);
-                  setDragOffset(0);
-                }}
+                onClick={() => setActive(idx)}
                 className="flex items-center gap-2.5 rounded-full px-4 py-2 text-xs sm:text-sm font-medium transition-all duration-300"
                 style={{
                   background: isSelected ? `${bookCfg.accent}25` : "rgb(255 255 255 / 0.04)",
