@@ -15,8 +15,8 @@ export const siteConfig = {
 
   contact: {
     email: null as string | null,
-    phone: null as string | null,
-    whatsapp: null as string | null,
+    phone: "01228040614" as string | null,
+    whatsapp: "+201228040614" as string | null,
     /**
      * REQUIRED to make the contact form deliver messages.
      * Any endpoint that accepts a JSON POST works (Formspree, Resend route, your own API...).
