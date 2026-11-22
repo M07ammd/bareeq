@@ -1,171 +1,349 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { RoundedBox, useTexture } from "@react-three/drei";
+import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { services, categories } from "@/data/services";
 import { ServiceIcon } from "./ServiceIcon";
 import { Button } from "@/components/ui/Button";
 
-// ── Palette per category ────────────────────────────────────────────────────
-const CATEGORY_COLORS: Record<string, { accent: string; glow: string }> = {
-  automation: { accent: "#536cff", glow: "rgb(83 108 255 / 0.35)" },
-  hospitality: { accent: "#a66aff", glow: "rgb(166 106 255 / 0.35)" },
-  creative:    { accent: "#f18ddb", glow: "rgb(241 141 219 / 0.35)" },
+// ── Distinct Luxury Book Covers for each service ────────────────────────────
+export const BOOK_COVERS: Record<
+  string,
+  {
+    bg: string;
+    spine: string;
+    accent: string;
+    glow: string;
+    foil: string;
+    title: string;
+    volume: string;
+  }
+> = {
+  "ai-automation": {
+    bg: "#0c1b40", // Deep Midnight Cobalt
+    spine: "#081026",
+    accent: "#536cff",
+    glow: "rgb(83 108 255 / 0.4)",
+    foil: "#e8edfa",
+    title: "حلول الذكاء الاصطناعي\nوالأتمتة",
+    volume: "VOL. 01",
+  },
+  nobtak: {
+    bg: "#0a3628", // Imperial Emerald
+    spine: "#062219",
+    accent: "#00d084",
+    glow: "rgb(0 208 132 / 0.4)",
+    foil: "#fce9b8",
+    title: "نـوبـتـك\nNOBTAK",
+    volume: "VOL. 02",
+  },
+  raseed: {
+    bg: "#2b1044", // Royal Amethyst
+    spine: "#1b0a2c",
+    accent: "#a66aff",
+    glow: "rgb(166 106 255 / 0.4)",
+    foil: "#f1dfff",
+    title: "رصـيـد\nRASEED",
+    volume: "VOL. 03",
+  },
+  qarrab: {
+    bg: "#5a2412", // Terracotta Amber Clay
+    spine: "#3a160a",
+    accent: "#ff7043",
+    glow: "rgb(255 112 67 / 0.4)",
+    foil: "#ffe3b3",
+    title: "قـــرّب\nQARRAB",
+    volume: "VOL. 04",
+  },
+  "ai-video-ads": {
+    bg: "#4e0f24", // Deep Velvet Ruby
+    spine: "#320816",
+    accent: "#f18ddb",
+    glow: "rgb(241 141 219 / 0.4)",
+    foil: "#ffcfe2",
+    title: "إعلانات الفيديو\nبالذكاء الاصطناعي",
+    volume: "VOL. 05",
+  },
+  "ai-motion-graphics": {
+    bg: "#0c3242", // Midnight Petrol Teal
+    spine: "#07202b",
+    accent: "#00bcd4",
+    glow: "rgb(0 188 212 / 0.4)",
+    foil: "#daf5fa",
+    title: "موشن جرافيك\nبالذكاء الاصطناعي",
+    volume: "VOL. 06",
+  },
 };
 
-// ── Spine colors per card ────────────────────────────────────────────────────
-const SPINE_COLORS = [
-  "#1a2080", "#0d1540", "#2a1060",
-  "#1a0d50", "#1a0940", "#0d1540",
-];
+/**
+ * Procedural high-resolution canvas texture generator for book covers.
+ * Creates an authentic clothbound book texture with embossed foil typography.
+ */
+function useBookCoverTexture(config: (typeof BOOK_COVERS)[string]) {
+  return useMemo(() => {
+    if (typeof document === "undefined") return null;
 
-// ── Image-textured Card Face ─────────────────────────────────────────────────
-function CardFace({
-  imageUrl,
-  catColor,
-  isActive,
-  spineColor,
-}: {
-  imageUrl: string;
-  catColor: string;
-  isActive: boolean;
-  spineColor: string;
-}) {
-  const texture = useTexture(imageUrl);
-  texture.colorSpace = THREE.SRGBColorSpace;
+    const canvas = document.createElement("canvas");
+    canvas.width = 768;
+    canvas.height = 1152;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
 
-  return (
-    <>
-      {/* Full-bleed photo on the face */}
-      <mesh position={[0, 0, 0.038]}>
-        <planeGeometry args={[1.1, 1.65]} />
-        <meshBasicMaterial map={texture} />
-      </mesh>
+    // 1. Base cloth gradient
+    const grad = ctx.createRadialGradient(
+      canvas.width / 2,
+      canvas.height / 2,
+      120,
+      canvas.width / 2,
+      canvas.height / 2,
+      720
+    );
+    grad.addColorStop(0, config.bg);
+    grad.addColorStop(1, config.spine);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      {/* Dark gradient overlay — bottom half for legibility */}
-      <mesh position={[0, -0.42, 0.040]}>
-        <planeGeometry args={[1.1, 0.82]} />
-        <meshBasicMaterial
-          color="#000000"
-          transparent
-          opacity={0.65}
-          blending={THREE.NormalBlending}
-        />
-      </mesh>
+    // 2. Cloth weave / texture stippling
+    ctx.fillStyle = "rgba(255, 255, 255, 0.02)";
+    for (let i = 0; i < canvas.width; i += 4) {
+      ctx.fillRect(i, 0, 1, canvas.height);
+    }
+    for (let j = 0; j < canvas.height; j += 4) {
+      ctx.fillRect(0, j, canvas.width, 1);
+    }
 
-      {/* Holographic category accent bar at top */}
-      <mesh position={[0, 0.75, 0.041]}>
-        <planeGeometry args={[1.1, 0.12]} />
-        <meshPhysicalMaterial
-          color={catColor}
-          emissive={catColor}
-          emissiveIntensity={isActive ? 1.6 : 0.7}
-          roughness={0.1}
-          metalness={1}
-          iridescence={1}
-          iridescenceIOR={1.9}
-          transparent
-          opacity={0.92}
-        />
-      </mesh>
+    // 3. Double thin embossed foil border
+    ctx.strokeStyle = config.foil;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(38, 38, canvas.width - 76, canvas.height - 76);
 
-      {/* Vignette rim glow on edges */}
-      <mesh position={[0, 0, 0.037]}>
-        <planeGeometry args={[1.1, 1.65]} />
-        <meshBasicMaterial
-          color={catColor}
-          transparent
-          opacity={isActive ? 0.18 : 0.06}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-    </>
-  );
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(48, 48, canvas.width - 96, canvas.height - 96);
+
+    // Corner diamond markers
+    const corners = [
+      [58, 58],
+      [canvas.width - 58, 58],
+      [58, canvas.height - 58],
+      [canvas.width - 58, canvas.height - 58],
+    ];
+    ctx.fillStyle = config.foil;
+    corners.forEach(([cx, cy]) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // 4. Volume top header
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "500 24px 'Outfit', sans-serif";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.fillText(config.volume, canvas.width / 2, 120);
+
+    // 5. Service Title in Arabic (Centered, Embossed Foil)
+    ctx.fillStyle = config.foil;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 4;
+
+    const lines = config.title.split("\n");
+    const isSingleLine = lines.length === 1;
+    const fontSize = isSingleLine ? 74 : 54;
+    ctx.font = `bold ${fontSize}px 'Alexandria', 'IBM Plex Sans Arabic', sans-serif`;
+
+    const lineHeight = fontSize * 1.38;
+    const startY = canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+
+    lines.forEach((line, idx) => {
+      ctx.fillText(line.trim(), canvas.width / 2, startY + idx * lineHeight);
+    });
+
+    // Reset shadow
+    ctx.shadowColor = "transparent";
+
+    // 6. Foil line ornament below title
+    const lineY = startY + (lines.length - 1) * lineHeight + fontSize * 0.95;
+    ctx.strokeStyle = config.foil;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 70, lineY);
+    ctx.lineTo(canvas.width / 2 + 70, lineY);
+    ctx.stroke();
+
+    // Small diamond in center of line
+    ctx.fillStyle = config.foil;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, lineY - 5);
+    ctx.lineTo(canvas.width / 2 + 6, lineY);
+    ctx.lineTo(canvas.width / 2, lineY + 5);
+    ctx.lineTo(canvas.width / 2 - 6, lineY);
+    ctx.closePath();
+    ctx.fill();
+
+    // 7. Brand signature at bottom
+    ctx.font = "600 22px 'Outfit', sans-serif";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.fillText("B A R E E Q", canvas.width / 2, canvas.height - 110);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }, [config]);
 }
 
-// ── 3D Service Card ─────────────────────────────────────────────────────────
-function ServiceCardMesh({
+// ── Realistic 3D Hardcover Book ─────────────────────────────────────────────
+function ServiceBookMesh({
   index,
   total,
   isActive,
   onClick,
-  categoryId,
-  imageUrl,
+  slug,
   still,
 }: {
   index: number;
   total: number;
   isActive: boolean;
   onClick: () => void;
-  categoryId: string;
-  imageUrl: string;
+  slug: string;
   still: boolean;
 }) {
-  const meshRef = useRef<THREE.Group>(null);
-  const targetX = (index - (total - 1) / 2) * 1.6;
-  const spineColor = SPINE_COLORS[index % SPINE_COLORS.length];
-  const catColor = CATEGORY_COLORS[categoryId]?.accent ?? "#536cff";
+  const groupRef = useRef<THREE.Group>(null);
+  const config = BOOK_COVERS[slug] ?? BOOK_COVERS["ai-automation"];
+  const coverTexture = useBookCoverTexture(config);
+
+  const targetX = (index - (total - 1) / 2) * 1.58;
 
   useFrame((state, delta) => {
-    if (!meshRef.current || still) return;
+    if (!groupRef.current || still) return;
     const t = state.clock.elapsedTime;
 
-    meshRef.current.position.x = THREE.MathUtils.damp(
-      meshRef.current.position.x, targetX, 5, delta
+    // Position damping
+    groupRef.current.position.x = THREE.MathUtils.damp(
+      groupRef.current.position.x,
+      targetX,
+      5,
+      delta
     );
 
-    // Active card: lift + gentle float
-    const targetY = isActive ? 0.22 + Math.sin(t * 1.4) * 0.04 : 0;
-    const targetZ = isActive ? 0.65 : 0;
+    // When active: lifts up, floats gently, steps forward, and faces viewer
+    const targetY = isActive ? 0.28 + Math.sin(t * 1.5) * 0.04 : 0;
+    const targetZ = isActive ? 0.75 : 0;
     const targetRotY = isActive
-      ? Math.sin(t * 0.5) * 0.03
-      : (index - (total - 1) / 2) * -0.04;
+      ? Math.sin(t * 0.6) * 0.03
+      : 0.22 + (index - (total - 1) / 2) * -0.05; // 3/4 display angle showing spine & cover
 
-    meshRef.current.position.y = THREE.MathUtils.damp(meshRef.current.position.y, targetY, 4, delta);
-    meshRef.current.position.z = THREE.MathUtils.damp(meshRef.current.position.z, targetZ, 4, delta);
-    meshRef.current.rotation.y = THREE.MathUtils.damp(meshRef.current.rotation.y, targetRotY, 4, delta);
+    groupRef.current.position.y = THREE.MathUtils.damp(
+      groupRef.current.position.y,
+      targetY,
+      4,
+      delta
+    );
+    groupRef.current.position.z = THREE.MathUtils.damp(
+      groupRef.current.position.z,
+      targetZ,
+      4,
+      delta
+    );
+    groupRef.current.rotation.y = THREE.MathUtils.damp(
+      groupRef.current.rotation.y,
+      targetRotY,
+      4,
+      delta
+    );
 
+    // Subtle idle breathing tilt
     if (!isActive) {
-      meshRef.current.rotation.x = THREE.MathUtils.damp(
-        meshRef.current.rotation.x,
-        Math.sin(t * 0.4 + index) * 0.025,
-        3, delta
+      groupRef.current.rotation.x = THREE.MathUtils.damp(
+        groupRef.current.rotation.x,
+        Math.sin(t * 0.5 + index) * 0.02,
+        3,
+        delta
       );
     }
   });
 
   return (
-    <group ref={meshRef} position={[targetX, 0, 0]} onClick={onClick}>
-      {/* Card body — dark spine + depth */}
-      <RoundedBox args={[1.1, 1.65, 0.075]} radius={0.06} smoothness={4}>
-        <meshPhysicalMaterial
-          color={spineColor}
-          roughness={0.3}
-          metalness={0.3}
-          clearcoat={0.95}
-          clearcoatRoughness={0.08}
-        />
-      </RoundedBox>
+    <group ref={groupRef} position={[targetX, 0, 0]} onClick={onClick}>
+      {/* ── 1. Front Hardcover Board with Foil Title Texture ── */}
+      <group position={[0, 0, 0.07]}>
+        <RoundedBox args={[1.15, 1.68, 0.024]} radius={0.035} smoothness={4}>
+          <meshPhysicalMaterial
+            color={config.bg}
+            roughness={0.4}
+            metalness={0.15}
+            clearcoat={0.7}
+            clearcoatRoughness={0.15}
+          />
+        </RoundedBox>
+        {/* Cover Face Plate with high-res Canvas Texture */}
+        {coverTexture && (
+          <mesh position={[0, 0, 0.013]}>
+            <planeGeometry args={[1.14, 1.67]} />
+            <meshPhysicalMaterial
+              map={coverTexture}
+              roughness={0.35}
+              metalness={0.12}
+              clearcoat={0.9}
+              clearcoatRoughness={0.1}
+            />
+          </mesh>
+        )}
+      </group>
 
-      {/* Photo + overlays on the front face */}
-      <CardFace
-        imageUrl={imageUrl}
-        catColor={catColor}
-        isActive={isActive}
-        spineColor={spineColor}
-      />
+      {/* ── 2. Back Hardcover Board ── */}
+      <group position={[0, 0, -0.07]}>
+        <RoundedBox args={[1.15, 1.68, 0.024]} radius={0.035} smoothness={4}>
+          <meshPhysicalMaterial
+            color={config.bg}
+            roughness={0.4}
+            metalness={0.15}
+            clearcoat={0.7}
+            clearcoatRoughness={0.15}
+          />
+        </RoundedBox>
+      </group>
 
-      {/* Back-glow halo when active */}
+      {/* ── 3. Spine Binding (Left Edge) ── */}
+      <group position={[-0.575, 0, 0]}>
+        <RoundedBox args={[0.026, 1.68, 0.16]} radius={0.02} smoothness={4}>
+          <meshPhysicalMaterial
+            color={config.spine}
+            roughness={0.45}
+            metalness={0.2}
+            clearcoat={0.6}
+          />
+        </RoundedBox>
+        {/* Golden bookmark ribbon edge at top of spine */}
+        <mesh position={[0, 0.842, 0]}>
+          <boxGeometry args={[0.028, 0.012, 0.06]} />
+          <meshBasicMaterial color={config.foil} />
+        </mesh>
+      </group>
+
+      {/* ── 4. Inner Paper Core (Ivory Book Pages Block) ── */}
+      <group position={[0.02, 0, 0]}>
+        <RoundedBox args={[1.11, 1.63, 0.125]} radius={0.02} smoothness={3}>
+          <meshStandardMaterial
+            color="#f7f3eb"
+            roughness={0.9}
+            metalness={0.05}
+          />
+        </RoundedBox>
+      </group>
+
+      {/* ── 5. Active Ambient Glow Halo ── */}
       {isActive && (
-        <mesh position={[0, 0, -0.08]}>
-          <planeGeometry args={[1.6, 2.4]} />
+        <mesh position={[0, 0, -0.1]}>
+          <planeGeometry args={[1.7, 2.3]} />
           <meshBasicMaterial
-            color={catColor}
+            color={config.accent}
             transparent
-            opacity={0.14}
+            opacity={0.18}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
@@ -176,37 +354,49 @@ function ServiceCardMesh({
 
 // ── Shelf Platform ───────────────────────────────────────────────────────────
 function Shelf({ count }: { count: number }) {
-  const width = count * 1.6 + 1.2;
+  const width = count * 1.58 + 1.2;
   return (
-    <group position={[0, -1.08, 0]}>
-      {/* shelf board */}
-      <RoundedBox args={[width, 0.1, 0.5]} radius={0.03} smoothness={4}>
+    <group position={[0, -1.06, 0]}>
+      {/* Sleek dark metallic shelf plank */}
+      <RoundedBox args={[width, 0.09, 0.65]} radius={0.03} smoothness={4}>
         <meshPhysicalMaterial
-          color="#1a1d33"
-          roughness={0.3}
-          metalness={0.6}
+          color="#16182e"
+          roughness={0.25}
+          metalness={0.7}
           clearcoat={1}
           clearcoatRoughness={0.1}
         />
       </RoundedBox>
-      {/* subtle shadow plane */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.051, 0]}>
-        <planeGeometry args={[width + 1, 1.6]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.18} />
+      {/* Front metallic trim highlight */}
+      <mesh position={[0, 0, 0.326]}>
+        <boxGeometry args={[width, 0.02, 0.005]} />
+        <meshBasicMaterial color="#536cff" transparent opacity={0.6} />
+      </mesh>
+      {/* Soft contact shadow */}
+      <mesh rotation-x={-Math.PI / 2} position={[0, -0.046, 0]}>
+        <planeGeometry args={[width + 0.8, 1.8]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.25} />
       </mesh>
     </group>
   );
 }
 
 // ── Ambient Environment Lights ───────────────────────────────────────────────
-function SceneLights({ activeCategory }: { activeCategory: string }) {
-  const catColor = CATEGORY_COLORS[activeCategory]?.accent ?? "#536cff";
+function SceneLights({ activeSlug }: { activeSlug: string }) {
+  const config = BOOK_COVERS[activeSlug] ?? BOOK_COVERS["ai-automation"];
   return (
     <>
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[4, 6, 5]} intensity={2.4} color="#ffffff" />
-      <directionalLight position={[-4, 2, 3]} intensity={1.6} color={catColor} />
-      <pointLight position={[0, 2, 3]} intensity={2} color={catColor} distance={8} decay={2} />
+      <ambientLight intensity={0.8} />
+      <directionalLight position={[4, 6, 6]} intensity={2.8} color="#ffffff" />
+      <directionalLight position={[-5, 3, 4]} intensity={2.0} color={config.accent} />
+      <directionalLight position={[0, -3, 3]} intensity={0.8} color="#ffffff" />
+      <pointLight
+        position={[0, 2, 3]}
+        intensity={2.2}
+        color={config.accent}
+        distance={7}
+        decay={2}
+      />
     </>
   );
 }
@@ -222,29 +412,27 @@ function ShelfScene({
   still: boolean;
 }) {
   const { camera } = useThree();
-  const prevCat = useRef<string>(services[0].category);
 
   useFrame((state, delta) => {
     if (still) return;
-    // Lazy camera drift toward active card
-    const targetX = (activeIndex - (services.length - 1) / 2) * -0.35;
+    // Camera gently centers slightly on the active book
+    const targetX = (activeIndex - (services.length - 1) / 2) * -0.32;
     state.camera.position.x = THREE.MathUtils.damp(state.camera.position.x, targetX, 2.5, delta);
-    state.camera.position.y = THREE.MathUtils.damp(state.camera.position.y, 0.15, 2, delta);
+    state.camera.position.y = THREE.MathUtils.damp(state.camera.position.y, 0.16, 2, delta);
   });
 
   return (
     <>
-      <SceneLights activeCategory={services[activeIndex].category} />
+      <SceneLights activeSlug={services[activeIndex].slug} />
       <Shelf count={services.length} />
       {services.map((s, i) => (
-        <ServiceCardMesh
+        <ServiceBookMesh
           key={s.slug}
           index={i}
           total={services.length}
           isActive={i === activeIndex}
           onClick={() => onSelect(i)}
-          categoryId={s.category}
-          imageUrl={s.image.src}
+          slug={s.slug}
           still={still}
         />
       ))}
@@ -254,7 +442,7 @@ function ShelfScene({
 
 // ── Detail Panel ─────────────────────────────────────────────────────────────
 function DetailPanel({ service, categoryLabel }: { service: (typeof services)[0]; categoryLabel: string }) {
-  const catColor = CATEGORY_COLORS[service.category];
+  const config = BOOK_COVERS[service.slug] ?? BOOK_COVERS["ai-automation"];
   const ease = [0.16, 1, 0.3, 1] as [number, number, number, number];
 
   return (
@@ -268,34 +456,34 @@ function DetailPanel({ service, categoryLabel }: { service: (typeof services)[0]
         className="flex flex-col"
       >
         {/* Category tag */}
-        <div className="mb-5 flex items-center gap-3">
+        <div className="mb-4 flex items-center gap-3">
           <span
             className="h-2.5 w-2.5 rounded-full"
-            style={{ background: catColor.accent, boxShadow: `0 0 10px ${catColor.accent}` }}
+            style={{ background: config.accent, boxShadow: `0 0 12px ${config.accent}` }}
           />
           <span className="font-latin text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-white/50">
-            {categoryLabel}
+            {config.volume} • {categoryLabel}
           </span>
         </div>
 
         {/* Title */}
-        <h3 className="mb-4 font-display text-3xl font-bold leading-snug text-white lg:text-4xl">
+        <h3 className="mb-2 font-display text-3xl font-bold leading-snug text-white lg:text-4xl">
           {service.nameAr}
         </h3>
-        <p className="font-latin mb-2 text-sm font-medium tracking-widest text-white/35 uppercase">
+        <p className="font-latin mb-2 text-sm font-medium tracking-widest text-white/40 uppercase">
           {service.nameEn}
         </p>
 
-        {/* Divider */}
+        {/* Distinctive accent divider */}
         <div
           className="my-5 h-px w-full"
           style={{
-            background: `linear-gradient(to right, ${catColor.accent}, transparent)`,
+            background: `linear-gradient(to right, ${config.accent}, transparent)`,
           }}
         />
 
         {/* Short description */}
-        <p className="mb-8 text-base leading-relaxed text-white/70">
+        <p className="mb-7 text-base leading-relaxed text-white/75">
           {service.short}
         </p>
 
@@ -304,9 +492,9 @@ function DetailPanel({ service, categoryLabel }: { service: (typeof services)[0]
           <div key={f.title} className="mb-3 flex items-start gap-3">
             <span
               className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ background: catColor.accent }}
+              style={{ background: config.accent }}
             />
-            <span className="text-sm text-white/65">{f.title}</span>
+            <span className="text-sm text-white/70">{f.title}</span>
           </div>
         ))}
 
@@ -333,25 +521,29 @@ function IndexDots({
 }) {
   return (
     <div className="flex items-center gap-2">
-      {Array.from({ length: total }, (_, i) => (
-        <button
-          key={i}
-          onClick={() => onSelect(i)}
-          className="transition-all duration-300"
-          aria-label={`الخدمة ${i + 1}`}
-        >
-          <span
-            className="block rounded-full transition-all duration-300"
-            style={{
-              width: i === active ? 24 : 8,
-              height: 8,
-              background: i === active
-                ? CATEGORY_COLORS[services[i].category]?.accent ?? "#536cff"
-                : "rgb(255 255 255 / 0.2)",
-            }}
-          />
-        </button>
-      ))}
+      {Array.from({ length: total }, (_, i) => {
+        const slug = services[i].slug;
+        const config = BOOK_COVERS[slug] ?? BOOK_COVERS["ai-automation"];
+        const isActive = i === active;
+        return (
+          <button
+            key={i}
+            onClick={() => onSelect(i)}
+            className="transition-all duration-300"
+            aria-label={`الكتاب ${i + 1}`}
+          >
+            <span
+              className="block rounded-full transition-all duration-300"
+              style={{
+                width: isActive ? 28 : 8,
+                height: 8,
+                background: isActive ? config.accent : "rgb(255 255 255 / 0.2)",
+                boxShadow: isActive ? `0 0 10px ${config.accent}` : "none",
+              }}
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -362,7 +554,7 @@ export function ServicesShelf() {
   const [active, setActive] = useState(0);
   const service = services[active];
   const category = categories.find((c) => c.id === service.category);
-  const catColor = CATEGORY_COLORS[service.category];
+  const config = BOOK_COVERS[service.slug] ?? BOOK_COVERS["ai-automation"];
 
   // Keyboard navigation
   useEffect(() => {
@@ -379,34 +571,35 @@ export function ServicesShelf() {
   }, []);
 
   return (
-    <div className="bg-night grain relative overflow-hidden py-20 md:py-28 lg:py-32"
+    <div
+      className="bg-night grain relative overflow-hidden py-20 md:py-28 lg:py-32"
       style={{ "--gx": "60%", "--gy": "30%" } as React.CSSProperties}
     >
-      {/* Ambient category glow */}
+      {/* Ambient glow matching the active book's distinct color */}
       <motion.div
-        key={service.category}
+        key={service.slug}
         className="pointer-events-none absolute inset-0 -z-0"
         animate={{ opacity: 1 }}
         initial={{ opacity: 0 }}
-        transition={{ duration: 1 }}
+        transition={{ duration: 0.8 }}
         style={{
-          background: `radial-gradient(ellipse 60% 50% at 70% 50%, ${catColor.glow} 0%, transparent 70%)`,
+          background: `radial-gradient(ellipse 60% 50% at 65% 45%, ${config.glow} 0%, transparent 70%)`,
         }}
       />
 
       <div className="relative z-[1] mx-auto max-w-7xl px-6">
         {/* ── Section Header ── */}
-        <div className="mb-16">
+        <div className="mb-14 sm:mb-16">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="flex items-center gap-3 mb-5"
+            className="flex items-center gap-3 mb-4"
           >
             <span className="h-px w-10 bg-white/30" />
-            <span className="font-latin text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-white/45">
-              Our Services
+            <span className="font-latin text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-white/50">
+              Working Volumes • Our Services
             </span>
           </motion.div>
           <motion.h2
@@ -422,19 +615,19 @@ export function ServicesShelf() {
           </motion.h2>
         </div>
 
-        {/* ── Two-Column: Shelf Canvas + Detail Panel ── */}
-        <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[1fr_380px] lg:gap-10">
+        {/* ── Two-Column: Bookshelf Canvas + Detail Panel ── */}
+        <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[1fr_390px] lg:gap-12">
 
-          {/* ── LEFT: 3D Shelf Canvas ── */}
+          {/* ── LEFT: 3D Bookshelf Canvas ── */}
           <div>
             <div
-              className="relative w-full overflow-hidden rounded-2xl"
-              style={{ height: "clamp(280px, 50vw, 460px)" }}
+              className="relative w-full overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]"
+              style={{ height: "clamp(300px, 52vw, 470px)" }}
             >
               {/* Canvas */}
               <Canvas
                 dpr={[1, 1.5]}
-                camera={{ position: [0, 0.4, 7.5], fov: 40 }}
+                camera={{ position: [0, 0.45, 7.4], fov: 40 }}
                 gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
                 style={{ background: "transparent" }}
               >
@@ -445,32 +638,32 @@ export function ServicesShelf() {
                 />
               </Canvas>
 
-              {/* Touch swipe hint on mobile */}
+              {/* Touch hint for mobile */}
               <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 lg:hidden">
-                <span className="glass-dark rounded-full px-4 py-1.5 text-xs text-white/50">
-                  انقر على الكارت لاختياره
+                <span className="glass-dark rounded-full px-4 py-1.5 text-xs text-white/55">
+                  انقر على الكتاب لفتحه
                 </span>
               </div>
             </div>
 
-            {/* Nav Dots */}
+            {/* Nav Controls */}
             <div className="mt-6 flex items-center justify-between">
               <IndexDots total={services.length} active={active} onSelect={setActive} />
-              {/* Prev/Next */}
-              <div className="flex gap-2">
+              {/* Prev/Next Buttons */}
+              <div className="flex gap-2.5">
                 <button
                   onClick={() => setActive((p) => Math.max(p - 1, 0))}
                   disabled={active === 0}
-                  className="glass-dark grid h-10 w-10 place-items-center rounded-full text-white/60 transition-all hover:text-white disabled:opacity-30"
-                  aria-label="السابق"
+                  className="glass-dark grid h-10 w-10 place-items-center rounded-full text-white/70 transition-all hover:bg-white/15 hover:text-white disabled:opacity-25"
+                  aria-label="الكتاب السابق"
                 >
                   ←
                 </button>
                 <button
                   onClick={() => setActive((p) => Math.min(p + 1, services.length - 1))}
                   disabled={active === services.length - 1}
-                  className="glass-dark grid h-10 w-10 place-items-center rounded-full text-white/60 transition-all hover:text-white disabled:opacity-30"
-                  aria-label="التالي"
+                  className="glass-dark grid h-10 w-10 place-items-center rounded-full text-white/70 transition-all hover:bg-white/15 hover:text-white disabled:opacity-25"
+                  aria-label="الكتاب التالي"
                 >
                   →
                 </button>
@@ -479,17 +672,17 @@ export function ServicesShelf() {
           </div>
 
           {/* ── RIGHT: Editorial Detail Panel ── */}
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-6 lg:border-0 lg:bg-transparent lg:p-0 lg:ps-6">
-            {/* Service icon */}
+          <div className="rounded-3xl border border-white/[0.07] bg-white/[0.03] p-6 lg:border-0 lg:bg-transparent lg:p-0 lg:ps-6">
+            {/* Service Icon with signature color */}
             <motion.div
               key={service.slug + "-icon"}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4 }}
-              className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl"
+              className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl shadow-lg"
               style={{
-                background: `linear-gradient(135deg, ${catColor.accent}22, ${catColor.accent}44)`,
-                border: `1px solid ${catColor.accent}44`,
+                background: `linear-gradient(135deg, ${config.accent}25, ${config.accent}50)`,
+                border: `1px solid ${config.accent}55`,
               }}
             >
               <ServiceIcon name={service.icon} className="h-9 w-9" />
@@ -499,25 +692,28 @@ export function ServicesShelf() {
           </div>
         </div>
 
-        {/* ── Category Tabs ── */}
-        <div className="mt-16 flex flex-wrap gap-3">
-          {categories.map((cat) => {
-            const isActive = services[active].category === cat.id;
-            const color = CATEGORY_COLORS[cat.id];
-            const firstIdx = services.findIndex((s) => s.category === cat.id);
+        {/* ── Book Quick Selector Tabs ── */}
+        <div className="mt-14 flex flex-wrap gap-2.5 sm:gap-3">
+          {services.map((s, idx) => {
+            const isSelected = active === idx;
+            const bookCfg = BOOK_COVERS[s.slug] ?? BOOK_COVERS["ai-automation"];
             return (
               <button
-                key={cat.id}
-                onClick={() => setActive(firstIdx)}
-                className="rounded-full px-5 py-2 text-sm font-medium transition-all duration-300"
+                key={s.slug}
+                onClick={() => setActive(idx)}
+                className="flex items-center gap-2.5 rounded-full px-4 py-2 text-xs sm:text-sm font-medium transition-all duration-300"
                 style={{
-                  background: isActive ? `${color.accent}22` : "rgb(255 255 255 / 0.05)",
-                  border: `1px solid ${isActive ? color.accent : "rgb(255 255 255 / 0.1)"}`,
-                  color: isActive ? color.accent : "rgb(255 255 255 / 0.5)",
-                  boxShadow: isActive ? `0 0 20px ${color.glow}` : "none",
+                  background: isSelected ? `${bookCfg.accent}25` : "rgb(255 255 255 / 0.04)",
+                  border: `1px solid ${isSelected ? bookCfg.accent : "rgb(255 255 255 / 0.1)"}`,
+                  color: isSelected ? "#ffffff" : "rgb(255 255 255 / 0.6)",
+                  boxShadow: isSelected ? `0 0 16px ${bookCfg.glow}` : "none",
                 }}
               >
-                {cat.titleEn}
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: bookCfg.accent }}
+                />
+                <span>{s.nameAr}</span>
               </button>
             );
           })}
